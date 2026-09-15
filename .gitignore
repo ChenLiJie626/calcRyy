@@ -1,0 +1,13 @@
+build/
+out/
+build_out/
+.DS_Store
+input/*.bin
+output/*.bin
+AclNNInvocation/build/
+AclNNInvocation/input/*.bin
+AclNNInvocation/output/*.bin
+CalcRyyMultiCore/build_out/
+CalcRyyMultiCore/kernel/
+__pycache__/
+**/__pycache__/
