@@ -41,12 +41,17 @@ bool PositiveOrDynamic(int64_t dim)
     return dim > 0 || IsDynamic(dim);
 }
 
+bool NonNegativeOrDynamic(int64_t dim)
+{
+    return dim >= 0 || IsDynamic(dim);
+}
+
 bool CheckInputShapes(const gert::Shape &hRShape, const gert::Shape &hIShape,
                       const gert::Shape &infoShape, const gert::Shape &powerShape,
                       const gert::Shape &weakShape, bool requireStatic,
                       int64_t &aNum, int64_t &bNum, const char *stage)
 {
-    if (hRShape.GetDimNum() != 3 || !PositiveOrDynamic(hRShape.GetDim(0)) ||
+    if (hRShape.GetDimNum() != 3 || !NonNegativeOrDynamic(hRShape.GetDim(0)) ||
         !SameOrDynamic(hRShape.GetDim(1), ROWS) || !SameOrDynamic(hRShape.GetDim(2), COLS)) {
         CALC_RYY_LOG_FAIL(stage, "invalid h_r shape, expect [aNum,%d,%d]", ROWS, COLS);
         LogShape(stage, "h_r", hRShape);

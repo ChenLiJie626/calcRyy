@@ -190,8 +190,12 @@ __aicore__ inline void PackLinkChunk(GM_ADDR hR, GM_ADDR hI, GM_ADDR interfPower
     GlobalTensor<float> bBlock;
     GlobalTensor<float> cBlock;
     GlobalTensor<float> accBlock;
-    hRGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hR), static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
-    hIGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hI), static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
+    if (aNum > 0) {
+        hRGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hR),
+                             static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
+        hIGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hI),
+                             static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
+    }
     SetWorkspaceBuffers(workspace, aBlock, bBlock, cBlock, accBlock, slotIdx);
 
     ZeroPackedInputs(aBlock, bBlock, packRowBuf, localAivIdx, localAivNum);
@@ -283,8 +287,12 @@ __aicore__ inline void WriteHs(GM_ADDR hR, GM_ADDR hI, GM_ADDR hsR, GM_ADDR hsI,
     GlobalTensor<float> hIGm;
     GlobalTensor<float> hsRGm;
     GlobalTensor<float> hsIGm;
-    hRGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hR), static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
-    hIGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hI), static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
+    if (aNum > 0) {
+        hRGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hR),
+                             static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
+        hIGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hI),
+                             static_cast<uint64_t>(aNum) * H_MATRIX_ELEMS);
+    }
     hsRGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hsR), static_cast<uint64_t>(bNum) * OUTPUT_MATRIX_ELEMS);
     hsIGm.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(hsI), static_cast<uint64_t>(bNum) * OUTPUT_MATRIX_ELEMS);
 
@@ -365,7 +373,7 @@ extern "C" __global__ __aicore__ void calc_ryy(GM_ADDR h_r, GM_ADDR h_i,
     auto infoGm = reinterpret_cast<__gm__ uint32_t *>(h_info);
     const uint32_t aNum = tilingData.aNum;
     const uint32_t bNum = tilingData.bNum;
-    if (aNum == 0 || bNum == 0 || infoGm[0] != aNum || infoGm[2] != bNum) {
+    if (bNum == 0 || infoGm[0] != aNum || infoGm[2] != bNum) {
         return;
     }
     const uint32_t maxLinkPerB = MinU32(infoGm[1], aNum);

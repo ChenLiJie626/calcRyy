@@ -9,12 +9,24 @@ ROWS = 8
 COLS = 32
 
 
+def parse_index_set(value: str) -> set[int]:
+    if not value.strip():
+        return set()
+    try:
+        return {int(item.strip()) for item in value.split(",") if item.strip()}
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "zero-link-indices must be a comma-separated list of integers"
+        ) from exc
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate CalcRyy inputs and golden outputs.")
     parser.add_argument("--a-num", type=int, default=40)
     parser.add_argument("--b-num", type=int, default=19)
     parser.add_argument("--max-link-per-b", type=int, default=11)
     parser.add_argument("--fixed-link-count", type=int)
+    parser.add_argument("--zero-link-indices", type=parse_index_set, default=set())
     parser.add_argument("--contiguous-links", action="store_true")
     parser.add_argument("--seed", type=int, default=20260915)
     parser.add_argument("--scale", type=float, default=0.125)
@@ -23,15 +35,25 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.a_num <= 0 or args.b_num <= 0:
-        raise ValueError("a-num and b-num must be positive")
+    if args.a_num < 0 or args.b_num <= 0:
+        raise ValueError("a-num must be non-negative and b-num must be positive")
     if args.max_link_per_b < 0 or args.max_link_per_b > args.a_num:
         raise ValueError("max-link-per-b must be in [0, a-num]")
+    invalid_zero_indices = sorted(
+        b_idx for b_idx in args.zero_link_indices if b_idx < 0 or b_idx >= args.b_num
+    )
+    if invalid_zero_indices:
+        raise ValueError(
+            f"zero-link-indices must be in [0, b-num), invalid: {invalid_zero_indices}"
+        )
     if args.fixed_link_count is not None:
         if args.fixed_link_count < 0 or args.fixed_link_count > args.max_link_per_b:
             raise ValueError("fixed-link-count must be in [0, max-link-per-b]")
-        if args.contiguous_links and args.b_num * args.fixed_link_count > args.a_num:
-            raise ValueError("contiguous fixed links require a-num >= b-num * fixed-link-count")
+        nonzero_b_num = args.b_num - len(args.zero_link_indices)
+        if args.contiguous_links and nonzero_b_num * args.fixed_link_count > args.a_num:
+            raise ValueError(
+                "contiguous fixed links require enough a-num rows for all nonzero B items"
+            )
 
     rng = np.random.default_rng(args.seed)
     os.makedirs("input", exist_ok=True)
@@ -43,8 +65,11 @@ def main() -> None:
     weak_interf = rng.uniform(0.01, 0.5, size=(args.b_num, ROWS)).astype(np.float32)
 
     entries = []
+    contiguous_offset = 0
     for b_idx in range(args.b_num):
-        if args.fixed_link_count is not None:
+        if b_idx in args.zero_link_indices:
+            length = 0
+        elif args.fixed_link_count is not None:
             length = args.fixed_link_count
         elif args.max_link_per_b == 0:
             length = 0
@@ -52,10 +77,15 @@ def main() -> None:
             length = args.max_link_per_b
         else:
             length = int(rng.integers(0, args.max_link_per_b + 1))
-        max_offset = args.a_num - length
         if args.contiguous_links and args.fixed_link_count is not None:
-            offset = b_idx * length
+            offset = contiguous_offset
+            contiguous_offset += length
+            if length == 0 and args.a_num > 0:
+                offset = min(offset, args.a_num - 1)
         else:
+            # Even when len=0, offset is still the Hs source row. Keep it in
+            # [0, aNum) whenever H exists.
+            max_offset = args.a_num - max(length, 1) if args.a_num > 0 else 0
             offset = int(rng.integers(0, max_offset + 1)) if max_offset > 0 else 0
         hs_len = b_idx % (ROWS + 1)
         hs_offset = int(rng.integers(0, COLS - hs_len + 1))
@@ -79,7 +109,7 @@ def main() -> None:
             ryy_r[b_idx] += interf_power[h_idx] * real
             ryy_i[b_idx] += interf_power[h_idx] * imag
         ryy_r[b_idx, np.arange(ROWS), np.arange(ROWS)] += weak_interf[b_idx]
-        if hs_len:
+        if args.a_num > 0 and hs_len:
             hs_r[b_idx, :, :hs_len] = h_r[offset, :, hs_offset:hs_offset + hs_len]
             hs_i[b_idx, :, :hs_len] = h_i[offset, :, hs_offset:hs_offset + hs_len]
 
@@ -93,9 +123,13 @@ def main() -> None:
     hs_r.tofile("output/golden_hs_r.bin")
     hs_i.tofile("output/golden_hs_i.bin")
 
+    zero_len_indices = [
+        b_idx for b_idx in range(args.b_num) if entries[b_idx * 4 + 1] == 0
+    ]
     print(
         "Generate input and golden data success. "
-        f"aNum={args.a_num}, bNum={args.b_num}, maxLinkPerB={args.max_link_per_b}"
+        f"aNum={args.a_num}, bNum={args.b_num}, maxLinkPerB={args.max_link_per_b}, "
+        f"zeroLenB={zero_len_indices}"
     )
 
 

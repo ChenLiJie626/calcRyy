@@ -163,7 +163,7 @@ bool RunOp(size_t warmupCount, size_t repeatCount, bool checkEveryRun)
 
 int main(int argc, char **argv)
 {
-    g_aNum = ParsePositiveIntArg(argc, argv, 1, "A_NUM", DEFAULT_A_NUM, "aNum");
+    g_aNum = ParseNonNegativeIntArg(argc, argv, 1, "A_NUM", DEFAULT_A_NUM, "aNum");
     g_bNum = ParsePositiveIntArg(argc, argv, 2, "B_NUM", DEFAULT_B_NUM, "bNum");
     g_maxLinkPerB = ParseNonNegativeIntArg(argc, argv, 3, "MAX_LINK_PER_B",
                                            DEFAULT_MAX_LINK_PER_B, "maxLinkPerB");

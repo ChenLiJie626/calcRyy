@@ -80,22 +80,23 @@ bool OpRunner::Init()
 {
     for (size_t i = 0; i < numInputs_; ++i) {
         auto size = GetInputSize(i);
+        const auto allocationSize = std::max<size_t>(size, 1);
         void *devMem = nullptr;
-        if (aclrtMalloc(&devMem, size, ACL_MEM_MALLOC_HUGE_FIRST) != ACL_SUCCESS) {
+        if (aclrtMalloc(&devMem, allocationSize, ACL_MEM_MALLOC_HUGE_FIRST) != ACL_SUCCESS) {
             ERROR_LOG("Malloc device memory for input[%zu] failed", i);
             return false;
         }
         devInputs_.emplace_back(devMem);
-        inputBuffers_.emplace_back(aclCreateDataBuffer(devMem, size));
+        inputBuffers_.emplace_back(aclCreateDataBuffer(devMem, allocationSize));
 
         void *hostInput = nullptr;
         if (g_isDevice) {
-            if (aclrtMalloc(&hostInput, size, ACL_MEM_MALLOC_HUGE_FIRST) != ACL_SUCCESS) {
+            if (aclrtMalloc(&hostInput, allocationSize, ACL_MEM_MALLOC_HUGE_FIRST) != ACL_SUCCESS) {
                 ERROR_LOG("Malloc device memory for input[%zu] failed", i);
                 return false;
             }
         } else {
-            if (aclrtMallocHost(&hostInput, size) != ACL_SUCCESS) {
+            if (aclrtMallocHost(&hostInput, allocationSize) != ACL_SUCCESS) {
                 ERROR_LOG("Malloc device memory for input[%zu] failed", i);
                 return false;
             }
@@ -319,6 +320,10 @@ bool OpRunner::RunOp(size_t warmupCount, size_t repeatCount, bool checkEveryRun)
 
     for (size_t i = 0; i < numInputs_; ++i) {
         auto size = GetInputSize(i);
+        if (size == 0) {
+            INFO_LOG("Skip empty input[%zu] copy", i);
+            continue;
+        }
         aclrtMemcpyKind kind = ACL_MEMCPY_HOST_TO_DEVICE;
         if (g_isDevice) {
             kind = ACL_MEMCPY_DEVICE_TO_DEVICE;

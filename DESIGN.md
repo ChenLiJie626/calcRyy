@@ -125,7 +125,14 @@ User workspace is `16 * 67072 = 1,073,152` bytes. The host adds `GetLibApiWorkSp
 
 ## 6. Boundary behavior
 
-- Tensor shapes require positive `aNum` and `bNum`.
+- Tensor shapes require non-negative `aNum` and positive `bNum`.
+- When `aNum=0`, the link loop is skipped, `ryy_r` contains only the
+  `weak_interf` diagonal, and `ryy_i`, `hs_r`, and `hs_i` are zero.
+- When `aNum>0` and one B item has `len=0`, only that item's Gram loop is
+  skipped. Its accumulator remains zero until `weak_interf` is added to the
+  real diagonal; `hs` is still extracted independently when `hsLen>0`.
+- When `hsLen=0`, the kernel does not read `h[offset]` and writes an all-zero
+  `hs_r` and `hs_i` matrix for that B item.
 - Runtime `h_info[0]` and `h_info[2]` must equal the shape-derived `aNum` and `bNum`; otherwise the kernel returns without writing outputs.
 - `maxLinkPerB` is bounded by `aNum` in the kernel.
 - Each `len` is bounded by `maxLinkPerB` and by the remaining input range `aNum-offset`.
@@ -168,9 +175,26 @@ The operator package and aclnn caller were built and run on Ascend server `DevEn
 | ---: | ---: | ---: | --- |
 | 1 | 1 | 1 | minimum non-empty case |
 | 9 | 5 | 0 | zero-link path |
+| 64 | 19 | 10 | selected `len=0` items mixed with `len=10` items |
 | 24 | 16 | 8 | exact link-chunk and B-wave boundary |
 | 32 | 17 | 9 | both boundaries crossed by one |
 | 40 | 19 | 11 | default mixed case and repeated execution |
 | 80 | 33 | 25 | four link chunks and three B waves |
 
 All four outputs passed NumPy comparison. The largest observed absolute error across these runs was `1.91e-6`; both `hs` outputs matched exactly. A `2`-warmup, `3`-repeat run also passed every output-hash consistency check.
+
+The package was also rebuilt from source and installed with CANN 8.5.1 using
+Python 3.12.13 and NumPy 1.26.4. The zero-link, default varied-link, and
+`aNum=5440, bNum=544, len=10` cases all passed. For the large case, 10 warmup
+and 100 measured runs took 1.087 ms on average (1.074 ms minimum, 1.106 ms
+maximum); the largest absolute errors were `1.43e-6` for `ryy_r` and `2.09e-7`
+for `ryy_i`, while both `hs` outputs matched exactly.
+
+Additional CANN 8.5.1 edge regressions passed for `aNum=0, bNum=19` and for a
+mixed `aNum=64, bNum=19` case whose B indices `1,4,7,9,16` had `len=0` while
+all other items had `len=10`. Device-side results for each zero-link item were
+exactly `ryy_r=diag(weak_interf)` and `ryy_i=0`; `hsLen=0` was also verified
+for both a zero-link and a nonzero-link item. At production scale,
+`aNum=5440, bNum=544` with six zero-link items and 538 ten-link items passed
+all output comparisons and 20 repeated-output hash checks, averaging 1.097 ms
+(1.061 ms minimum, 1.116 ms maximum) after 10 warmups.
