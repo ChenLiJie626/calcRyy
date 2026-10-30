@@ -66,6 +66,10 @@ ZERO_LINK_INDICES=1,4,7,9,16 bash run.sh
 
 See [DESIGN.md](DESIGN.md) for the tiling, workspace, boundary handling, and verified cases.
 
+See [NUMERICAL_ACCURACY.md](NUMERICAL_ACCURACY.md) (中文) for numerical accuracy,
+conditioning, stable downstream solves, and a proposed validation plan. These are
+design recommendations, not implemented optimizations or new device benchmarks.
+
 ## CANN 8.5.1
 
 Build the operator package with the same CANN version that will load it. In
